@@ -22,6 +22,7 @@ from .files import extract_text
 from .health import CheckResult, run_checks
 from .hookrunner import HookError
 from .llm import ModelError, complete_text
+from .pin import tree_hash
 from .runner import RunError, RunResult, Runtime, load_runtime, run_screen
 from .screens import ScreenError
 from .status import ASKS, LOAD_PROMPT, LOAD_REQUESTS, Stats, chips, tiles
@@ -40,6 +41,16 @@ def _icon_svg(name: str) -> str:
 
 def icon(name: str) -> Markup:
     return Markup(_icon_svg(name))
+
+
+@lru_cache(maxsize=1)
+def _static_fingerprint() -> str:
+    return tree_hash(HERE / "static")[:10]
+
+
+def static_url(path: str) -> str:
+    """A /static URL that changes whenever any static file does, so browsers never reuse an old copy."""
+    return f"/static/{path}?v={_static_fingerprint()}"
 
 
 class RunRequest(BaseModel):
@@ -83,6 +94,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.globals["icon"] = icon
+    templates.env.globals["static_url"] = static_url
 
     def http_client() -> httpx.AsyncClient:
         if getattr(app.state, "http", None) is None:

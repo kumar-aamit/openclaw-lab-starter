@@ -94,9 +94,11 @@ jobs:
         env:
           GITEA_SHA: ${{ gitea.sha }}
         run: |
+          # Binary builds ignore --build-arg; BuildConfig env lands in the image after the Dockerfile's ENV.
+          oc set env "bc/${APP_NAME}" -n "${OPENSHIFT_NAMESPACE}" APP_COMMIT="${GITEA_SHA}"
           oc start-build "${APP_NAME}" \
+            -n "${OPENSHIFT_NAMESPACE}" \
             --from-dir=. \
-            --build-arg APP_COMMIT="${GITEA_SHA}" \
             --follow \
             --wait
 
