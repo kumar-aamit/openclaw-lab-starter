@@ -65,9 +65,9 @@ class Settings:
             mock=env.get("LLM_MOCK", "0").strip() == "1",
             api_key=env.get("LLM_API_KEY", "").strip() or None,
             fast=ModelEndpoint(env.get("LLM_FAST_URL", ""), env.get("LLM_FAST_MODEL", ""),
-                               env.get("LLM_FAST_PRECISION", "FP8"), env.get("LLM_FAST_JSON", "schema")),
+                               env.get("LLM_FAST_PRECISION", ""), env.get("LLM_FAST_JSON", "schema")),
             smart=ModelEndpoint(env.get("LLM_SMART_URL", ""), env.get("LLM_SMART_MODEL", ""),
-                                env.get("LLM_SMART_PRECISION", "NVFP4"), env.get("LLM_SMART_JSON", "schema")),
+                                env.get("LLM_SMART_PRECISION", ""), env.get("LLM_SMART_JSON", "schema")),
             lab_user=env.get("LAB_USER", "").strip(),
             version=app_version(env),
         )
