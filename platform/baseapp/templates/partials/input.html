@@ -1,0 +1,21 @@
+<label class="field" for="in-{{ field.name }}">
+  <span class="field-label">{{ field.label }}{% if field.optional %} <em>optional</em>{% endif %}</span>
+  {% if field.type == "textarea" %}
+  <textarea id="in-{{ field.name }}" name="{{ field.name }}" rows="6"
+            placeholder="{{ field.placeholder }}">{{ field.default }}</textarea>
+  {% elif field.type == "select" %}
+  <select id="in-{{ field.name }}" name="{{ field.name }}">
+    {% if field.optional %}<option value="">—</option>{% endif %}
+    {% for c in field.choices %}<option {{ 'selected' if c == field.default else '' }}>{{ c }}</option>{% endfor %}
+  </select>
+  {% elif field.type == "number" %}
+  <input id="in-{{ field.name }}" name="{{ field.name }}" type="number" value="{{ field.default }}" placeholder="{{ field.placeholder }}">
+  {% elif field.type == "toggle" %}
+  <input id="in-{{ field.name }}" name="{{ field.name }}" type="checkbox" value="on" {{ 'checked' if field.default in ('on', 'true', 'yes') else '' }}>
+  {% elif field.type == "file" %}
+  <input id="in-{{ field.name }}" name="{{ field.name }}" type="file" accept="{{ field.accept }}">
+  <span class="file-note" data-file-note="{{ field.name }}"></span>
+  {% else %}
+  <input id="in-{{ field.name }}" name="{{ field.name }}" type="text" value="{{ field.default }}" placeholder="{{ field.placeholder }}">
+  {% endif %}
+</label>

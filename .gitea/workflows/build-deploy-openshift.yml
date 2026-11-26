@@ -1,0 +1,107 @@
+name: Build and Deploy to OpenShift
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  GITEA_INSTANCE_URL: ${{ vars.GITEA_INSTANCE_URL || gitea.server_url }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trust Gitea TLS in job
+        run: git config --global http."${GITEA_INSTANCE_URL}/".sslVerify false
+
+      # Clone from Gitea only. Do not use actions/checkout — the runner would
+      # fetch that action from github.com and fail when outbound GitHub times out.
+      - name: Checkout
+        env:
+          GITEA_TOKEN: ${{ gitea.token }}
+          GITEA_REPOSITORY: ${{ gitea.repository }}
+          GITEA_SHA: ${{ gitea.sha }}
+          GITEA_REF: ${{ gitea.ref }}
+        run: |
+          set -euo pipefail
+          GITEA_HOST="${GITEA_INSTANCE_URL#https://}"
+          GITEA_HOST="${GITEA_HOST#http://}"
+          git init
+          git remote add origin "https://${GITEA_HOST}/${GITEA_REPOSITORY}.git"
+          AUTH_HEADER="Authorization: token ${GITEA_TOKEN}"
+          if git -c http.extraHeader="${AUTH_HEADER}" fetch --depth 1 origin "${GITEA_SHA}"; then
+            git checkout --force FETCH_HEAD
+          else
+            git -c http.extraHeader="${AUTH_HEADER}" fetch --depth 1 origin "${GITEA_REF}"
+            git checkout --force FETCH_HEAD
+          fi
+
+      - name: Resolve app configuration
+        env:
+          GITEA_REPOSITORY: ${{ gitea.repository }}
+          VAR_NAMESPACE: ${{ vars.OPENSHIFT_NAMESPACE }}
+        run: |
+          APP_NAME="${GITEA_REPOSITORY##*/}"
+          echo "APP_NAME=${APP_NAME}" >> "${GITHUB_ENV}"
+
+          OPENSHIFT_NAMESPACE="${VAR_NAMESPACE:-}"
+          if [ -z "${OPENSHIFT_NAMESPACE}" ]; then
+            echo "Set Gitea repo variable OPENSHIFT_NAMESPACE (e.g. rtp0000000)"
+            echo "Settings → Actions → Variables → OPENSHIFT_NAMESPACE"
+            exit 1
+          fi
+          echo "OPENSHIFT_NAMESPACE=${OPENSHIFT_NAMESPACE}" >> "${GITHUB_ENV}"
+          echo "Deploying ${APP_NAME} to namespace ${OPENSHIFT_NAMESPACE}"
+
+      - name: Install OpenShift CLI
+        run: |
+          curl -fsSL -o oc.tgz \
+            https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/stable/openshift-client-linux.tar.gz
+          tar xzf oc.tgz oc
+          sudo mv oc /usr/local/bin/oc
+
+      - name: Validate OpenShift credentials
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+        run: |
+          if [ -z "${OPENSHIFT_SERVER}" ]; then
+            echo "OPENSHIFT_SERVER secret is missing or empty"
+            exit 1
+          fi
+          if [ -z "${OPENSHIFT_TOKEN}" ]; then
+            echo "OPENSHIFT_TOKEN secret is missing or empty"
+            exit 1
+          fi
+
+      - name: Log in to OpenShift
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+        run: |
+          oc login "${OPENSHIFT_SERVER}" \
+            --token="${OPENSHIFT_TOKEN}" \
+            --insecure-skip-tls-verify=true
+          oc config set-context --current --namespace="${OPENSHIFT_NAMESPACE}"
+
+      - name: Ensure ImageStream exists
+        run: |
+          oc get imagestream "${APP_NAME}" -n "${OPENSHIFT_NAMESPACE}" \
+            || oc create imagestream "${APP_NAME}" -n "${OPENSHIFT_NAMESPACE}"
+
+      - name: Start OpenShift build
+        env:
+          GITEA_SHA: ${{ gitea.sha }}
+        run: |
+          oc start-build "${APP_NAME}" \
+            --from-dir=. \
+            --build-arg APP_COMMIT="${GITEA_SHA}" \
+            --follow \
+            --wait
+
+      - name: Wait for rollout
+        run: |
+          oc rollout status "deployment/${APP_NAME}" \
+            -n "${OPENSHIFT_NAMESPACE}" \
+            --timeout=5m

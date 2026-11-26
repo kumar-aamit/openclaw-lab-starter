@@ -1,0 +1,5 @@
+name: Alert Triage
+mark: shield
+brand: "#1D4ED8"
+site: HQ data center
+screens: [triage]

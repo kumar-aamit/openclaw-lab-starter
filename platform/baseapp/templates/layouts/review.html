@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ screen.title }} · {{ spec.name }}{% endblock %}
+{% block page_class %}page-wide{% endblock %}
+{% block content %}
+{% if screens|length > 1 %}
+<nav class="tabs">
+  {% for s in screens %}<a href="/s/{{ s.name }}" class="{{ 'active' if s.name == current else '' }}">{{ s.title }}</a>{% endfor %}
+</nav>
+{% endif %}
+<div class="review">
+  <form class="panel review-form" hx-post="/s/{{ screen.name }}/run" hx-target="#answer"
+        hx-encoding="multipart/form-data" hx-indicator="#answer-wrap">
+    <h1>{{ screen.title }}</h1>
+    {% if screen.description %}<p class="lede">{{ screen.description }}</p>{% endif %}
+
+    {% if screen.examples %}
+    <div class="chips" aria-label="Examples">
+      <span class="chips-label">Try</span>
+      {% for ex in screen.examples %}
+      <button type="button" class="chip" data-example="{{ loop.index0 }}"
+              data-inputs='{{ ex.inputs | tojson }}'>{{ ex.label }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <input type="hidden" name="example" value="">
+    {% for field in screen.inputs %}{% include "partials/input.html" %}{% endfor %}
+
+    <p class="privacy">{{ icon("server") }} What you enter stays in {{ site }}. It goes only to the {{ screen.model }} model server on-site.</p>
+    <button type="submit" class="run">Run</button>
+  </form>
+
+  <section id="answer-wrap" class="answer">
+    <div class="panel working">{{ icon("server") }} Asking the {{ screen.model }} model on-site…</div>
+    <div id="answer" aria-live="polite">
+      <div class="panel empty"><p>Pick an example or fill in the form, then press Run.</p></div>
+    </div>
+  </section>
+</div>
+<script src="/static/js/review.js" defer></script>
+{% endblock %}

@@ -1,0 +1,11 @@
+<ul class="check-list">
+  {% for row in rows %}
+  {% set state = "skip" if row.ok is none else ("ok" if row.ok else "fail") %}
+  <li class="check check-{{ state }}">
+    <span class="check-icon">{{ icon({"ok": "circle-check", "fail": "triangle-alert", "skip": "circle-minus"}[state]) }}</span>
+    <span class="check-name">{{ row.name }}</span>
+    <span class="check-detail">{{ row.detail }}</span>
+    <span class="check-ms">{% if row.ms is not none %}{{ row.ms }} ms{% endif %}</span>
+  </li>
+  {% endfor %}
+</ul>

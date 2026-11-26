@@ -1,0 +1,72 @@
+title: Triage an alert
+description: Paste a security alert and attach its logs. The app counts what the logs show, checks the team's runbooks and gives a severity, a verdict, the attack techniques and next steps.
+layout: review
+model: smart
+inputs:
+  - {name: alert, type: textarea, label: Paste the alert, placeholder: "Alert text from the SIEM, firewall or a user report"}
+  - {name: logs, type: file, label: Attach the logs, accept: ".log,.txt,.csv", optional: true}
+  - {name: asset, type: select, label: Affected system, options: data/assets.csv, optional: true}
+knowledge: knowledge/
+output: json
+answer:
+  - score: {key: severity, title: Severity}
+  - text: {key: verdict, title: Verdict}
+  - table: {key: techniques, title: Attack techniques, columns: [Technique, ID, Evidence]}
+  - checklist: {key: steps, title: Next steps}
+examples:
+  - label: Password spray, then a login
+    inputs:
+      alert: "212 failed VPN logins for 9 users from 203.0.113.45, then a success for j.ortiz at 02:14"
+      logs: data/vpn-spray.log
+      asset: vpn-gw-01
+    mock:
+      severity: {value: 88, label: "Act now: one account is probably compromised"}
+      verdict: >-
+        Very likely a password spray that succeeded. 203.0.113.45 failed 212 times across 9 accounts
+        between 01:52 and 02:12, then j.ortiz logged in from the same address at 02:14:07 with
+        "mfa=none reason=legacy_client" and opened a connection to fin-db-02 at 02:16:31.
+      techniques:
+        - {Technique: Password spraying, ID: T1110.003, Evidence: "212 failures across 9 accounts from one address"}
+        - {Technique: Valid accounts, ID: T1078, Evidence: "j.ortiz login at 02:14:07 without MFA"}
+        - {Technique: External remote services, ID: T1133, Evidence: "Access through vpn-gw-01 with a legacy client"}
+      steps:
+        - {step: "Block 203.0.113.45 at the VPN gateway and the firewall edge", source: "[2]"}
+        - {step: "Disable j.ortiz's VPN session and force a password reset", source: "[2]"}
+        - {step: "Turn off the legacy VPN client that skipped multi-factor authentication", source: "[2]"}
+        - {step: "Pull j.ortiz's session log and check what it read from fin-db-02", source: "[3]"}
+        - {step: "Call the on-call incident lead: the session reached the finance database", source: "[4]"}
+        - {step: "Check the other 8 accounts for sign-ins from other addresses in the last 7 days", source: "[3]"}
+  - label: Reported phishing email
+    inputs:
+      alert: "m.reyes reported an email from payroll-update@examp1e-hr.example asking staff to confirm bank details through a link"
+      asset: mail-01
+    mock:
+      severity: {value: 55, label: "Investigate today: no sign yet that anyone clicked"}
+      verdict: >-
+        Likely a credential-phishing email. The sender domain imitates the company's HR domain with
+        a digit 1 in place of the letter l, and the request to confirm bank details through a link is
+        a common payroll-diversion lure. No logs were attached, so it is not yet known who clicked.
+      techniques:
+        - {Technique: Spearphishing link, ID: T1566.002, Evidence: "Link to confirm bank details"}
+      steps:
+        - {step: "Purge every copy of the email from mailboxes by sender and subject", source: "[2]"}
+        - {step: "Block examp1e-hr.example and the link's domain at the mail relay and web proxy", source: "[2]"}
+        - {step: "Search the web proxy log for anyone who opened the link", source: "[4]"}
+        - {step: "Ask m.reyes whether they replied or entered anything", source: "[4]"}
+        - {step: "Reset the password and revoke sessions of anyone who entered credentials", source: "[3]"}
+  - label: Locked-out user, already reset
+    inputs:
+      alert: "Account lockout for s.ito on the VPN after 6 failed logins"
+      logs: data/vpn-lockout.log
+      asset: vpn-gw-01
+    mock:
+      severity: {value: 12, label: "Likely benign: a forgotten password, already handled"}
+      verdict: >-
+        Most likely a user who forgot their password. All 6 failures came from one address,
+        198.51.100.23, for one account, ending in a lockout at 09:00:16. The help desk reset the
+        password after a callback check (HD-4471 at 09:21:47), and s.ito then logged in with an
+        approved MFA push at 09:24:05.
+      techniques: []
+      steps:
+        - {step: "Close the alert as benign and link help desk ticket HD-4471", source: ""}
+        - {step: "Confirm with s.ito that the 08:58 attempts were theirs", source: ""}

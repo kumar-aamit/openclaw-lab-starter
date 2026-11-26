@@ -1,0 +1,62 @@
+<div class="panel result" data-server-ms="{{ r.total_ms }}">
+  {% for b in screen.answer %}
+  {% set v = r.answer[b.key] %}
+  <section class="block block-{{ b.kind }}">
+    <h2>{{ b.title }}</h2>
+    {% if b.kind == "score" %}
+    <div class="score">
+      <div class="score-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ v.value }}">
+        <span style="width: {{ v.value }}%"></span>
+      </div>
+      <span class="score-value">{{ v.value }}</span>
+      <span class="score-label">{{ v.label }}</span>
+    </div>
+    {% elif b.kind == "text" %}
+    {% for para in v.split("\n\n") %}<p>{{ para }}</p>{% endfor %}
+    {% elif b.kind == "table" %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr>{% for c in b.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in v %}<tr>{% for c in b.columns %}<td>{{ row.get(c, "") }}</td>{% endfor %}</tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% elif b.kind == "checklist" %}
+    <ul class="checklist">
+      {% for item in v %}
+      <li>
+        <input type="checkbox" aria-label="Done">
+        <span>{{ item.step }}</span>
+        {% set label = cite(item.source) %}
+        {% if label %}<span class="cite" title="From this app's documents">{{ label }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  {% if r.sources %}
+  <section class="block sources">
+    <h2>Sources searched</h2>
+    <ol>{% for p in r.sources %}<li>{{ p.source }}{% if p.heading %} › {{ p.heading }}{% endif %}</li>{% endfor %}</ol>
+  </section>
+  {% endif %}
+
+  <div class="route">
+    {% if r.mocked %}
+    <span class="route-head">{{ icon("circle-minus") }} Mock answer: no model was called.</span>
+    {% else %}
+    <span class="route-head">{{ icon("circle-check") }} Answered on-site in <strong class="route-total">…</strong></span>
+    {% endif %}
+    <span class="route-path">
+      <span>{{ icon("monitor-smartphone") }} This device</span>
+      <span class="route-hop" data-hop="device"></span>
+      <span>{{ icon("server") }} App</span>
+      <span class="route-hop">{% if r.model_ms is not none %}model {{ (r.model_ms / 1000) | round(2) }} s{% endif %}</span>
+      <span>{{ icon("server") }} {{ r.tier | capitalize }} model{% if r.model_name %} · {{ r.model_name }}{% endif %}</span>
+    </span>
+    <span class="route-site">All inside {{ site }}</span>
+  </div>
+</div>

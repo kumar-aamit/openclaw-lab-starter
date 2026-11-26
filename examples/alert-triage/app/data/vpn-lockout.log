@@ -1,0 +1,8 @@
+2026-11-24T08:58:12Z vpn-gw-01 auth user=s.ito src=198.51.100.23 result=FAIL reason=bad_password
+2026-11-24T08:58:31Z vpn-gw-01 auth user=s.ito src=198.51.100.23 result=FAIL reason=bad_password
+2026-11-24T08:59:02Z vpn-gw-01 auth user=s.ito src=198.51.100.23 result=FAIL reason=bad_password
+2026-11-24T08:59:40Z vpn-gw-01 auth user=s.ito src=198.51.100.23 result=FAIL reason=bad_password
+2026-11-24T09:00:15Z vpn-gw-01 auth user=s.ito src=198.51.100.23 result=FAIL reason=bad_password
+2026-11-24T09:00:16Z vpn-gw-01 auth user=s.ito src=198.51.100.23 result=FAIL reason=account_locked
+2026-11-24T09:21:47Z helpdesk ticket=HD-4471 user=s.ito action=password_reset verified_by=callback
+2026-11-24T09:24:05Z vpn-gw-01 auth user=s.ito src=198.51.100.23 result=OK mfa=push_approved

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Start · {{ spec.name }}{% endblock %}
+{% block page_class %}page-wide{% endblock %}
+{% block content %}
+<section class="panel start" data-commit="{{ commit }}">
+  <div class="start-head">
+    <div>
+      <h1>What do you want to build?</h1>
+      {% if screens %}
+      <p class="lede">Your app is live at this URL. Send the next prompt to your harness, or
+        <a href="/s/{{ screens[0].name }}">open your app</a>.</p>
+      {% else %}
+      <p class="lede">Pick a use case or describe your own. Send the prompt to your harness and your
+        app appears at this URL in a few minutes.</p>
+      {% endif %}
+    </div>
+    <div class="status-strip" aria-label="Lab checks" hx-get="/api/checks?view=status"
+         hx-trigger="load, every 10s" hx-swap="innerHTML">
+      <p class="muted">Checking…</p>
+    </div>
+  </div>
+
+  <nav class="cases" aria-label="Use cases">
+    {% for c in cases %}
+    <a class="case{{ ' case-own' if c.own }}" href="/start?case={{ c.id }}"
+       {%- if c.id == case.id %} aria-current="page"{% endif %}>
+      {%- if c.own %}+ {% endif %}
+      {%- if c.industry %}<span class="case-industry">{{ c.industry }}</span>{% endif %}{{ c.name }}
+      {%- if c.guided %} <small>{{ c.steps | length }} prompts</small>{% endif -%}
+    </a>
+    {% endfor %}
+  </nav>
+
+  <div class="start-work">
+    <div class="start-prompt">
+      {% if case.guided %}
+      <nav class="steps" aria-label="Prompts">
+        {% for s in case.steps %}
+        <a href="/start?case={{ case.id }}&step={{ loop.index }}"
+           class="step{{ ' step-done' if loop.index0 < done }}{{ ' step-next' if loop.index0 == done }}"
+           {%- if loop.index0 == view %} aria-current="step"{% endif %}>
+          {%- if loop.index0 < done %}{{ icon("circle-check") }}{% else %}{{ loop.index }}{% endif %} {{ s.name -}}
+        </a>
+        {% endfor %}
+      </nav>
+      {% endif %}
+
+      {% if case.own %}
+      <label class="field-label" for="prompt">Describe it in a sentence</label>
+      <textarea id="prompt" class="prompt-box" rows="5"
+                placeholder="An app for store associates that checks a returns request against our policy and says approve, refuse or escalate."></textarea>
+      <p class="hints">
+        <span data-hint="who">Who uses it</span>
+        <span data-hint="input">What they enter</span>
+        <span data-hint="output">What they get back</span>
+      </p>
+      <p class="start-warn" id="unsupported" hidden></p>
+      {% else %}
+      <pre class="prompt-box" id="prompt">{{ step.prompt }}</pre>
+      {% endif %}
+
+      {% if case.guided and view > done %}
+      <p class="start-warn">Send prompt {{ done + 1 }} first; each prompt builds on the one before.</p>
+      {% endif %}
+      <button type="button" class="run copy">Copy prompt{% if case.guided %} {{ view + 1 }}{% endif %}</button>
+      <p class="copy-note" role="status" aria-live="polite"></p>
+      <p class="see">
+        Paste it into your harness chat. When the new build is live, this page reloads.
+        {% if case.own %}Say who uses it, what they enter and what they get back; the harness fills in the rest.
+        {% elif step.see %}Then: {{ step.see | bold }}
+        {% else %}Then open your app and try the examples the harness made up.{% endif %}
+      </p>
+    </div>
+
+    {% set live = case.guided and view < done %}
+    <aside class="preview{{ ' preview-live' if live }}" aria-label="Preview of {{ case.screen }}">
+      <div class="preview-head">
+        <h2>{{ case.screen }}</h2>
+        <span>{% if live %}{{ icon("circle-check") }} On your app now{% else %}Preview{% endif %}</span>
+      </div>
+      <div class="preview-body">
+        <div class="preview-inputs">
+          {% for label in case.inputs %}<span>{{ label }}</span><i></i>{% endfor %}
+          <b aria-hidden="true"></b>
+        </div>
+        <div class="preview-answer">
+          {% for b in blocks %}
+          <div class="preview-block{{ ' preview-new' if b.fresh }}" data-kind="{{ b.kind }}"{% if not b.shown %} hidden{% endif %}>
+            <span class="preview-kind">{{ b.name }}{% if b.fresh %} · this prompt{% endif %}</span>
+            {% if b.kind == "score" %}
+            <span class="preview-score">{{ case.sample.score or "72 · Medium" }}</span>
+            {% elif b.kind == "table" %}
+            <table>{% for row in case.sample.table or [["Item", "Detail"], ["Item", "Detail"]] %}
+              <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td></tr>{% endfor %}</table>
+            {% elif b.kind == "checklist" %}
+            <ul>{% for item in case.sample.checklist or ["First step · Source › Section", "Second step · Source › Section"] %}
+              <li>{{ item }}</li>{% endfor %}</ul>
+            {% else %}
+            <span>{{ case.sample.text or "The answer, with the reasons and the source it came from." }}</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <p class="preview-limits">Answers can use text, a score, a table and a checklist. Not yet: charts, chat, images.</p>
+    </aside>
+  </div>
+</section>
+<script src="/static/js/start.js" defer></script>
+{% endblock %}

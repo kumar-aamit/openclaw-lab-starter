@@ -1,0 +1,7 @@
+hostname,role,owner,criticality,location
+vpn-gw-01,Remote access VPN gateway,Network team,high,HQ data center
+mail-01,Mail relay,IT operations,high,HQ data center
+dc-01,Domain controller,IT operations,critical,HQ data center
+fin-db-02,Finance database,Finance IT,critical,HQ data center
+web-ext-01,Public website,Web team,medium,HQ data center
+hr-laptop-114,Laptop,M. Reyes (HR),medium,Remote

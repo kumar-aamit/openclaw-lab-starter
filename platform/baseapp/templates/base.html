@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ spec.name }}{% endblock %}</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <style>:root { --brand: {{ spec.brand }}; }</style>
+  <script src="/static/vendor/htmx.min.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">
+        {%- if spec.mark_icon %}{{ icon(spec.mark_icon) }}{% else %}{{ spec.mark_letter }}{% endif -%}
+      </span>
+      <span class="app-name">{{ spec.name }}</span>
+      {%- if lab_user %}<span class="lab-user">· {{ lab_user }}</span>{% endif %}
+    </div>
+    <span class="badge" title="The model, data, code and fonts all run on-site">
+      {{ icon("wifi-off") }} Air-gap capable
+    </span>
+  </header>
+
+  <main class="page {% block page_class %}{% endblock %}">
+    {% if config_error %}
+    <div class="notice notice-fail" role="alert">
+      {{ icon("triangle-alert") }}
+      <div><strong>Your app's settings have a problem.</strong> <code>{{ config_error }}</code></div>
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="app-footer">
+    {{ icon("server") }} Data stays in {{ site }}
+    <span class="sep">·</span> platform {{ platform_version }}
+    <span class="sep">·</span> build <code>{{ commit[:7] }}</code>
+    <span class="sep">·</span> <a href="/start">Start page</a>
+  </footer>
+</body>
+</html>
