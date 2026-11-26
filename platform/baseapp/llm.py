@@ -15,6 +15,18 @@ class ModelError(Exception):
     pass
 
 
+def example_of(schema: dict):
+    """A filled-in example of a JSON Schema; small models copy a raw schema instead of filling it."""
+    kind = schema.get("type")
+    if kind == "object":
+        return {key: example_of(sub) for key, sub in schema.get("properties", {}).items()}
+    if kind == "array":
+        return [example_of(schema.get("items", {}))]
+    if kind == "integer":
+        return schema.get("minimum", 0)
+    return "..."
+
+
 def _tokens(body: dict, content: str) -> int:
     """Tokens the call used, from usage; estimated at 4 characters a token if the server sends none."""
     usage = body.get("usage") if isinstance(body, dict) else None
@@ -37,7 +49,7 @@ async def _post(client: httpx.AsyncClient, endpoint: ModelEndpoint, api_key: str
         raise ModelError(f"the {tier} model is unreachable ({type(exc).__name__})") from None
     ms = round((time.perf_counter() - start) * 1000)
     if response.status_code != 200:
-        raise ModelError(f"the {tier} model returned HTTP {response.status_code}: {response.text[:200]}")
+        raise ModelError(f"the {tier} model returned HTTP {response.status_code}: {response.text[:500]}")
     try:
         body = response.json()
         content = body["choices"][0]["message"]["content"] or ""
@@ -58,13 +70,22 @@ async def complete_json(
     timeout: float = 120.0,
 ) -> tuple[dict, int, int]:
     """One structured answer: (the parsed JSON, model ms, tokens used)."""
+    if endpoint.json_mode != "schema":
+        shape = json.dumps(example_of(schema))
+        last = messages[-1]
+        messages = [*messages[:-1], {**last, "content": f"{last['content']}\n\nReply with only one JSON object with "
+                                                        f"exactly these keys, filled in with your answer, and no other "
+                                                        f"text. Every list may have as many items as needed:\n{shape}"}]
     payload = {
         "model": endpoint.model,
         "messages": messages,
         "temperature": 0.2,
         "max_tokens": 4096,
-        "response_format": {"type": "json_schema", "json_schema": {"name": "answer", "schema": schema}},
     }
+    if endpoint.json_mode == "schema":
+        payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "answer", "schema": schema}}
+    elif endpoint.json_mode == "object":
+        payload["response_format"] = {"type": "json_object"}
     if not reasoning:
         payload["chat_template_kwargs"] = {"enable_thinking": False}
     content, ms, tokens = await _post(client, endpoint, api_key, payload, tier, timeout)
@@ -73,6 +94,11 @@ async def complete_json(
         content = fenced.group(1)
     try:
         return json.loads(content), ms, tokens
+    except ValueError:
+        pass
+    start, end = content.find("{"), content.rfind("}")
+    try:
+        return json.loads(content[start:end + 1]), ms, tokens
     except ValueError:
         raise ModelError(f"the {tier} model did not return JSON: {content[:120]!r}") from None
 
