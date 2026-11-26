@@ -11,16 +11,24 @@
 </head>
 <body>
   <header class="app-header">
-    <div class="brand">
+    <a class="brand" href="/">
       <span class="mark" aria-hidden="true">
         {%- if spec.mark_icon %}{{ icon(spec.mark_icon) }}{% else %}{{ spec.mark_letter }}{% endif -%}
       </span>
       <span class="app-name">{{ spec.name }}</span>
       {%- if lab_user %}<span class="lab-user">· {{ lab_user }}</span>{% endif %}
-    </div>
-    <span class="badge" title="The model, data, code and fonts all run on-site">
-      {{ icon("wifi-off") }} Air-gap capable
-    </span>
+    </a>
+    {% if screens|length > 1 %}
+    <nav class="tabs" aria-label="Screens">
+      {% for s in screens %}<a href="/s/{{ s.name }}"{% if s.name == current %} aria-current="page"{% endif %}>{{ s.title }}</a>{% endfor %}
+    </nav>
+    {% endif %}
+    {% if screens and not on_status %}
+    <a class="status-link" href="/status">
+      <span class="dot dot-skip" hx-get="/api/checks?view=dot" hx-trigger="load" hx-swap="outerHTML" aria-hidden="true"></span>
+      System status
+    </a>
+    {% endif %}
   </header>
 
   <main class="page {% block page_class %}{% endblock %}">
@@ -34,10 +42,10 @@
   </main>
 
   <footer class="app-footer">
-    {{ icon("server") }} Data stays in {{ site }}
-    <span class="sep">·</span> platform {{ platform_version }}
+    <span>{{ spec.name }} <strong>v{{ version }}</strong></span>
     <span class="sep">·</span> build <code>{{ commit[:7] }}</code>
-    <span class="sep">·</span> <a href="/start">Start page</a>
+    <span class="sep">·</span> deployed {{ deployed }}
+    <span class="sep">·</span> base-app {{ platform_version }}
   </footer>
 </body>
 </html>

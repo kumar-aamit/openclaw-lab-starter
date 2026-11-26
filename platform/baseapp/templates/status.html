@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}System status · {{ spec.name }}{% endblock %}
+{% block page_class %}page-wide status-page{% endblock %}
+{% block content %}
+<section class="tiles" aria-label="System status" hx-get="/status/tiles" hx-trigger="load, refresh-tiles from:body"
+         hx-swap="innerHTML">
+  {% include "partials/tiles.html" %}
+</section>
+
+<section class="demos" aria-label="Try the models">
+  {% for tier, ask in asks.items() %}
+  <div class="panel demo">
+    <div class="demo-head">
+      <h2>{{ ask.title }}</h2>
+      <button type="button" class="run run-small" hx-post="/status/ask/{{ tier }}" hx-target="#ask-{{ tier }}"
+              hx-indicator="#ask-{{ tier }}-wrap">Ask</button>
+    </div>
+    <p class="demo-question{{ ' mono' if tier == 'fast' }}">{{ ask.question }}</p>
+    <div id="ask-{{ tier }}-wrap" class="demo-out">
+      <p class="working">Thinking…</p>
+      <div id="ask-{{ tier }}" aria-live="polite"><p class="muted">The answer appears here.</p></div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="panel demo">
+    <div class="demo-head">
+      <div>
+        <h2>{{ load_requests }} requests at once</h2>
+        <p class="demo-sub">All sent together to the fast model on on-site GPUs</p>
+      </div>
+      <button type="button" class="run run-small run-quiet" hx-post="/status/load" hx-target="#load"
+              hx-indicator="#load-wrap">Run</button>
+    </div>
+    <div id="load-wrap" class="demo-out">
+      <p class="working">Running {{ load_requests }} requests…</p>
+      <div id="load" aria-live="polite"><p class="muted">Results appear here.</p></div>
+    </div>
+  </div>
+</section>
+{% endblock %}

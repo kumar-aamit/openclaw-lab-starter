@@ -2,17 +2,14 @@
 {% block title %}{{ screen.title }} · {{ spec.name }}{% endblock %}
 {% block page_class %}page-wide{% endblock %}
 {% block content %}
-{% if screens|length > 1 %}
-<nav class="tabs">
-  {% for s in screens %}<a href="/s/{{ s.name }}" class="{{ 'active' if s.name == current else '' }}">{{ s.title }}</a>{% endfor %}
-</nav>
-{% endif %}
+<div class="screen-head">
+  <h1>{{ screen.title }}</h1>
+  {% if screen.description %}<p class="lede">{{ screen.description }}</p>{% endif %}
+</div>
+{% if chips %}{% include "partials/chips.html" %}{% endif %}
 <div class="review">
   <form class="panel review-form" hx-post="/s/{{ screen.name }}/run" hx-target="#answer"
         hx-encoding="multipart/form-data" hx-indicator="#answer-wrap">
-    <h1>{{ screen.title }}</h1>
-    {% if screen.description %}<p class="lede">{{ screen.description }}</p>{% endif %}
-
     {% if screen.examples %}
     <div class="chips" aria-label="Examples">
       <span class="chips-label">Try</span>

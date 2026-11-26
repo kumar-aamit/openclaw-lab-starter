@@ -1,0 +1,145 @@
+title: Network Config Review
+description: Paste a running config. You get a risk score, the issues with exact fixes, and what to fix first.
+layout: review
+model: smart
+reasoning: off
+inputs:
+  - {name: config, type: textarea, label: Device config, placeholder: "Paste a running config, or pick a sample above."}
+  - {name: platform, type: select, label: Platform, options: [Cisco IOS XE switch, Cisco IOS XE router, Cisco ASA firewall]}
+knowledge: knowledge/
+output: json
+answer:
+  - score: {key: risk, title: "Risk (higher is worse)", higher: worse}
+  - table: {key: issues, title: Issues to fix, columns: [Line, Issue, Severity, Rule, Fix]}
+  - text: {key: why, title: Why this matters}
+status:
+  - airgap
+  - stored: Configs stored
+  - runs: Reviews
+  - last: Last review
+  - model
+  - knowledge: Standard
+examples:
+  - label: Catalyst 9300 access switch
+    inputs:
+      platform: Cisco IOS XE switch
+      config: |
+        hostname ACC-SW-03
+        !
+        enable password cisco123
+        !
+        username admin privilege 15 password 0 Admin2024
+        !
+        snmp-server community public RW
+        snmp-server community private RO
+        !
+        interface GigabitEthernet1/0/1
+         description Floor 2 - desk 14
+         switchport mode access
+         switchport access vlan 20
+         spanning-tree portfast
+        !
+        interface GigabitEthernet1/0/24
+         description unused
+         switchport mode access
+        !
+        ip http server
+        !
+        line vty 0 4
+         password cisco
+         login
+         transport input telnet ssh
+        !
+        end
+    mock:
+      risk: {value: 86, label: High risk}
+      issues:
+        - {Line: "transport input telnet ssh", Issue: "Telnet allowed on VTY lines, so logins cross the network in clear text", Severity: High, Rule: "1.2", Fix: "transport input ssh"}
+        - {Line: "snmp-server community public RW", Issue: "Default SNMP community with write access", Severity: High, Rule: "3.1", Fix: "no snmp-server community public RW, then configure SNMPv3"}
+        - {Line: "enable password cisco123", Issue: "Enable password stored in clear text", Severity: High, Rule: "2.1", Fix: "enable secret 9 <new-secret>; no enable password"}
+        - {Line: "username admin privilege 15 password 0 Admin2024", Issue: "Local admin password is unencrypted", Severity: Medium, Rule: "2.2", Fix: "username admin privilege 15 secret 9 <new-secret>"}
+        - {Line: "ip http server", Issue: "Plain HTTP management is on", Severity: Medium, Rule: "1.4", Fix: "no ip http server"}
+        - {Line: "interface GigabitEthernet1/0/24", Issue: "Unused port left enabled", Severity: Low, Rule: "4.3", Fix: "switchport access vlan 999; shutdown"}
+        - {Line: "spanning-tree portfast", Issue: "PortFast without BPDU Guard", Severity: Low, Rule: "4.1", Fix: "spanning-tree bpduguard enable"}
+      why: >-
+        Anyone on the management network can take control of this switch today. Telnet and a writable
+        SNMP community each give an attacker a way in with nothing more than a sniffed or guessed string.
+        Fix the three high items first: together they take about five minutes and close the easiest
+        paths in. The medium and low items limit what a single compromised desk port could do.
+  - label: ISR 4331 branch router
+    inputs:
+      platform: Cisco IOS XE router
+      config: |
+        hostname BR-RTR-12
+        !
+        enable password 7 0822455D0A16
+        !
+        ip http server
+        ip http secure-server
+        !
+        ntp server 192.0.2.10
+        !
+        interface GigabitEthernet0/0/0
+         description WAN to ISP
+         ip address 203.0.113.18 255.255.255.252
+        !
+        interface GigabitEthernet0/0/1
+         description LAN
+         ip address 10.42.12.1 255.255.255.0
+        !
+        line vty 0 4
+         password 7 05080F1C2243
+         login
+         transport input ssh
+        !
+        end
+    mock:
+      risk: {value: 71, label: High risk}
+      issues:
+        - {Line: "enable password 7 0822455D0A16", Issue: "Type 7 passwords can be reversed in seconds", Severity: High, Rule: "2.1", Fix: "enable secret 9 <new-secret>; no enable password"}
+        - {Line: "line vty 0 4", Issue: "No access-class, so SSH is reachable from the WAN", Severity: High, Rule: "1.3", Fix: "ip access-list standard MGMT-ONLY; permit 10.42.0.0 0.0.255.255; access-class MGMT-ONLY in"}
+        - {Line: "ip http server", Issue: "Plain HTTP management on a WAN-facing router", Severity: Medium, Rule: "1.4", Fix: "no ip http server"}
+        - {Line: "ntp server 192.0.2.10", Issue: "NTP without authentication can be spoofed", Severity: Medium, Rule: "3.4", Fix: "ntp authenticate; ntp authentication-key 1 hmac-sha2-256 <key>; ntp trusted-key 1"}
+        - {Line: "(missing) logging host", Issue: "No remote syslog, so events are lost on reboot", Severity: Low, Rule: "3.3", Fix: "logging host 10.42.0.20"}
+      why: >-
+        This branch router faces the internet and its management plane is open to it. Anyone who reaches
+        the WAN address can try SSH logins, and the reversible type 7 password means a leaked config is
+        enough to get in. Lock VTY access to the management network and switch to a strong secret first,
+        then add NTP authentication and remote logging so an incident leaves a trustworthy trail.
+  - label: ASA 5516 edge firewall
+    inputs:
+      platform: Cisco ASA firewall
+      config: |
+        hostname EDGE-FW-01
+        !
+        interface GigabitEthernet1/1
+         nameif outside
+         security-level 0
+        !
+        access-list OUTSIDE_IN extended permit ip any any
+        access-group OUTSIDE_IN in interface outside
+        !
+        icmp permit any outside
+        !
+        ssh 0.0.0.0 0.0.0.0 outside
+        ssh version 1
+        !
+        ssl cipher tlsv1.2 low
+        !
+        no threat-detection basic-threat
+        !
+        end
+    mock:
+      risk: {value: 93, label: Critical risk}
+      issues:
+        - {Line: "access-list OUTSIDE_IN extended permit ip any any", Issue: "The outside rule lets all inbound traffic through", Severity: High, Rule: "5.1", Fix: "Replace with permits for named services and hosts; end with deny ip any any log"}
+        - {Line: "ssh 0.0.0.0 0.0.0.0 outside", Issue: "SSH management open to the whole internet", Severity: High, Rule: "5.2", Fix: "no ssh 0.0.0.0 0.0.0.0 outside; ssh 10.10.0.0 255.255.255.0 inside"}
+        - {Line: "ssh version 1", Issue: "SSHv1 has known, practical attacks", Severity: High, Rule: "1.1", Fix: "ssh version 2"}
+        - {Line: "icmp permit any outside", Issue: "Unrestricted ICMP helps attackers map the network", Severity: Medium, Rule: "5.3", Fix: "icmp permit any echo-reply outside; icmp permit any unreachable outside"}
+        - {Line: "ssl cipher tlsv1.2 low", Issue: "Weak TLS ciphers are allowed", Severity: Medium, Rule: "5.4", Fix: "ssl cipher tlsv1.2 high"}
+        - {Line: "no threat-detection basic-threat", Issue: "Threat detection is off", Severity: Low, Rule: "5.5", Fix: "threat-detection basic-threat"}
+      why: >-
+        This firewall is not filtering anything. The outside rule permits every packet, so every service
+        behind it is exposed, and its own SSH is open to the internet on an obsolete protocol. Replace the
+        any-to-any rule with explicit permits before anything else, then restrict SSH to the inside
+        management subnet on version 2. The remaining items cut reconnaissance and turn detection back on.

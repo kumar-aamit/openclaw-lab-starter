@@ -1,0 +1,17 @@
+{% for t in tiles %}
+<div class="tile tile-{{ t.state }}">
+  <div class="tile-head">
+    <span class="tile-icon">{{ icon(t.icon) }}</span>
+    <span class="tile-name">{{ t.name }}</span>
+    <span class="info">
+      <button type="button" class="info-button" aria-label="What does {{ t.name }} mean?"
+              aria-describedby="tip-{{ t.id }}">{{ icon("info") }}</button>
+      <span class="tip" role="tooltip" id="tip-{{ t.id }}">{{ t.meaning }}</span>
+    </span>
+  </div>
+  <div class="tile-foot">
+    <span class="tile-status"><span class="dot dot-{{ t.state }}" aria-hidden="true"></span>{{ t.status }}</span>
+    <span class="tile-metric">{{ t.metric }}</span>
+  </div>
+</div>
+{% endfor %}

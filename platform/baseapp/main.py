@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from contextlib import asynccontextmanager
@@ -20,9 +21,10 @@ from .config import Settings
 from .files import extract_text
 from .health import CheckResult, run_checks
 from .hookrunner import HookError
+from .llm import ModelError, complete_text
 from .runner import RunError, RunResult, Runtime, load_runtime, run_screen
 from .screens import ScreenError
-from .start import bold, preview, steps_done, use_cases
+from .status import ASKS, LOAD_PROMPT, LOAD_REQUESTS, Stats, chips, tiles
 
 HERE = Path(__file__).parent
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
@@ -81,27 +83,31 @@ def create_app(settings: Settings) -> FastAPI:
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.globals["icon"] = icon
-    templates.env.filters["bold"] = bold
 
     def http_client() -> httpx.AsyncClient:
         if getattr(app.state, "http", None) is None:
             app.state.http = httpx.AsyncClient()
         return app.state.http
 
+    stats = Stats()
+    app.state.stats = stats
+    indexes = rt.indexes if rt else {}
+
     def page_context(**extra) -> dict:
         screens = list(rt.screens.values()) if rt else []
         return {"spec": spec, "site": site, "config_error": config_error, "commit": settings.commit,
-                "platform_version": __version__, "screens": screens, "lab_user": settings.lab_user, **extra}
+                "version": settings.version, "deployed": stats.deployed, "platform_version": __version__,
+                "screens": screens, "lab_user": settings.lab_user, **extra}
 
-    def start_page(request: Request, case_id: str = "", step: str = ""):
-        cases = use_cases()
-        case = next((c for c in cases if c.id == case_id), cases[0])
-        done = steps_done(case, list(rt.screens.values()) if rt else [])
-        last = len(case.steps) - 1
-        view = int(step) - 1 if step.isdigit() and 1 <= int(step) <= last + 1 else min(done, last)
-        return templates.TemplateResponse(request, "start.html", page_context(
-            cases=cases, case=case, done=done, view=view, step=case.steps[view],
-            blocks=preview(case, view)))
+    def status_page(request: Request):
+        return templates.TemplateResponse(request, "status.html", page_context(
+            on_status=True, tiles=tiles(settings, site, stats, indexes), asks=ASKS, load_requests=LOAD_REQUESTS))
+
+    def screen_chips(screen):
+        return chips(screen, settings, site, stats, indexes.get(screen.name) if screen.knowledge else None)
+
+    async def model_checks() -> dict[str, CheckResult]:
+        return {r.name: r for r in await run_checks(settings, http_client())}
 
     def screen_or_404(name: str):
         if rt is None or name not in rt.screens:
@@ -135,16 +141,62 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get("/api/version")
     async def version() -> dict:
-        return {"commit": settings.commit, "platform": __version__, "app": spec.name, "config_error": config_error}
+        return {"commit": settings.commit, "version": settings.version, "platform": __version__,
+                "app": spec.name, "config_error": config_error}
 
     @app.get("/api/checks")
     async def checks(request: Request):
         rows = [CheckResult("App", True, f"running {settings.commit[:7]}", None)]
         rows += await run_checks(settings, http_client())
         if request.headers.get("hx-request"):
-            partial = "status" if request.query_params.get("view") == "status" else "checks"
-            return templates.TemplateResponse(request, f"partials/{partial}.html", {"rows": rows})
+            if request.query_params.get("view") == "dot":
+                state = "fail" if any(r.ok is False for r in rows) else "ok"
+                return HTMLResponse(f'<span class="dot dot-{state}" aria-hidden="true"></span>')
+            return templates.TemplateResponse(request, "partials/checks.html", {"rows": rows})
         return [asdict(r) for r in rows]
+
+    @app.get("/status/tiles", response_class=HTMLResponse)
+    async def status_tiles(request: Request):
+        return templates.TemplateResponse(request, "partials/tiles.html", {
+            "tiles": tiles(settings, site, stats, indexes, await model_checks())})
+
+    @app.post("/status/ask/{tier}", response_class=HTMLResponse)
+    async def status_ask(request: Request, tier: str):
+        if tier not in ASKS:
+            raise HTTPException(status_code=404, detail=f"no model tier named {tier}")
+        endpoint = settings.smart if tier == "smart" else settings.fast
+        ctx = {"tier": tier, "endpoint": endpoint, "site": site, "mocked": settings.mock}
+        if settings.mock:
+            ctx.update(text=ASKS[tier]["mock"], ms=None, tokens=None)
+        else:
+            try:
+                text, ms, tokens = await complete_text(
+                    http_client(), endpoint, settings.api_key,
+                    [{"role": "user", "content": ASKS[tier]["prompt"]}], tier=tier, max_tokens=160)
+            except ModelError as exc:
+                return templates.TemplateResponse(request, "partials/run_error.html", {"message": str(exc)})
+            stats.tokens += tokens
+            ctx.update(text=text, ms=ms, tokens=tokens)
+        return templates.TemplateResponse(request, "partials/ask.html", ctx)
+
+    @app.post("/status/load", response_class=HTMLResponse)
+    async def status_load(request: Request):
+        ctx = {"mocked": settings.mock, "endpoint": settings.fast, "n": LOAD_REQUESTS}
+        if not settings.mock:
+            async def one():
+                return await complete_text(http_client(), settings.fast, settings.api_key,
+                                           [{"role": "user", "content": LOAD_PROMPT}], tier="fast", max_tokens=8)
+            results = await asyncio.gather(*(one() for _ in range(LOAD_REQUESTS)), return_exceptions=True)
+            done = [r for r in results if not isinstance(r, BaseException)]
+            errors = [str(r) for r in results if isinstance(r, ModelError)]
+            if not done:
+                return templates.TemplateResponse(request, "partials/run_error.html",
+                                                  {"message": errors[0] if errors else "no request answered"})
+            times = sorted(ms for _, ms, _ in done)
+            stats.load_ms = times
+            stats.tokens += sum(t for _, _, t in done)
+            ctx.update(times=times, slowest=max(times), median=stats.load_median, failed=len(results) - len(done))
+        return templates.TemplateResponse(request, "partials/load.html", ctx)
 
     @app.get("/api/screens")
     async def screens() -> list[dict]:
@@ -155,17 +207,17 @@ def create_app(settings: Settings) -> FastAPI:
     async def index(request: Request):
         if rt and rt.screens:
             return RedirectResponse(f"/s/{next(iter(rt.screens))}", status_code=303)
-        return start_page(request)
+        return status_page(request)
 
-    @app.get("/start", response_class=HTMLResponse)
-    async def start(request: Request, case: str = "", step: str = ""):
-        return start_page(request, case, step)
+    @app.get("/status", response_class=HTMLResponse)
+    async def status(request: Request):
+        return status_page(request)
 
     @app.get("/s/{name}", response_class=HTMLResponse)
     async def screen_page(request: Request, name: str):
         screen = screen_or_404(name)
         return templates.TemplateResponse(request, f"layouts/{screen.layout}.html",
-                                          page_context(screen=screen, current=name))
+                                          page_context(screen=screen, current=name, chips=screen_chips(screen)))
 
     @app.post("/s/{name}/run", response_class=HTMLResponse)
     async def screen_run(request: Request, name: str):
@@ -175,8 +227,9 @@ def create_app(settings: Settings) -> FastAPI:
             result = await run_screen(rt, screen, inputs, example, http_client())
         except RunError as exc:
             return templates.TemplateResponse(request, "partials/run_error.html", {"message": str(exc)})
+        stats.record_run(name, result.total_ms, result.tokens)
         return templates.TemplateResponse(request, "partials/answer.html", {
-            "screen": screen, "r": result, "site": site,
+            "screen": screen, "r": result, "site": site, "chips": screen_chips(screen),
             "cite": lambda ref: _source_label(result, ref)})
 
     @app.post("/api/screens/{name}/run")
@@ -186,11 +239,12 @@ def create_app(settings: Settings) -> FastAPI:
             result = await run_screen(rt, screen, body.inputs, body.example, http_client())
         except RunError as exc:
             return JSONResponse({"error": str(exc)}, status_code=422)
+        stats.record_run(name, result.total_ms, result.tokens)
         return {
             "answer": result.answer,
             "sources": [{"n": i, "source": p.source, "heading": p.heading} for i, p in enumerate(result.sources, 1)],
             "timings": {"total_ms": result.total_ms, "model_ms": result.model_ms},
-            "model": result.model_name, "tier": result.tier, "mocked": result.mocked,
+            "model": result.model_name, "tier": result.tier, "mocked": result.mocked, "tokens": result.tokens,
         }
 
     return app

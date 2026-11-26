@@ -12,9 +12,10 @@ OUTPUTS = ("json",)
 PLANNED_OUTPUTS = ("stream", "chat")
 BLOCK_KINDS = ("text", "score", "table", "checklist")
 MODELS = ("fast", "smart")
+STATUS_KINDS = ("airgap", "stored", "runs", "last", "model", "knowledge")
 NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 SCREEN_KEYS = {"title", "description", "layout", "model", "reasoning", "inputs",
-               "knowledge", "output", "answer", "examples"}
+               "knowledge", "output", "answer", "examples", "status"}
 INPUT_KEYS = {"name", "type", "label", "optional", "placeholder", "accept", "options", "default"}
 
 
@@ -40,6 +41,13 @@ class AnswerBlock:
     key: str
     title: str
     columns: tuple[str, ...] = ()
+    higher: str = ""  # score only: "worse" or "better" colors the value red, amber or green
+
+
+@dataclass(frozen=True)
+class StatusChip:
+    kind: str
+    label: str = ""
 
 
 @dataclass(frozen=True)
@@ -63,6 +71,7 @@ class ScreenSpec:
     answer: tuple[AnswerBlock, ...]
     examples: tuple[Example, ...]
     prompt_path: Path
+    status: tuple[StatusChip, ...] | None = None  # None: the platform's default set
 
 
 def _choices(app_dir: Path, options, where: str) -> tuple[str, ...]:
@@ -118,10 +127,39 @@ def _block(raw, where: str) -> AnswerBlock:
     columns = tuple(str(c) for c in opts.get("columns", ()))
     if kind == "table" and not columns:
         raise ScreenError(f"{where}.table needs columns, like columns: [Technique, Evidence]")
+    higher = str(opts.get("higher", ""))
+    if higher and (kind != "score" or higher not in ("worse", "better")):
+        raise ScreenError(f"{where}.higher: use higher: worse or higher: better, and only on a score")
     key = str(opts.get("key", kind))
     if not NAME.match(key):
         raise ScreenError(f'{where}.key "{key}" is not valid; use lowercase letters, digits and _')
-    return AnswerBlock(kind=kind, key=key, title=str(opts.get("title", kind.capitalize())), columns=columns)
+    return AnswerBlock(kind=kind, key=key, title=str(opts.get("title", kind.capitalize())), columns=columns,
+                       higher=higher)
+
+
+def _status(raw, where: str = "status") -> tuple[StatusChip, ...]:
+    kinds = ", ".join(STATUS_KINDS)
+    if raw in (False, "off"):
+        return ()
+    if not isinstance(raw, list):
+        raise ScreenError(f"{where} must be a list like [airgap, stored, runs: Reviews], or off")
+    chips = []
+    for i, item in enumerate(raw):
+        if isinstance(item, str):
+            kind, label = item, ""
+        elif isinstance(item, dict) and len(item) == 1:
+            kind, label = next(iter(item.items()))
+            label = "" if label is None else str(label)
+        else:
+            raise ScreenError(f"{where}[{i}] must be a chip name like runs, or runs: Reviews to rename it")
+        if kind not in STATUS_KINDS:
+            raise ScreenError(f'{where}[{i}]: chip "{kind}" is not valid; use one of {kinds}')
+        if len(label) > 24:
+            raise ScreenError(f'{where}[{i}]: label "{label}" is longer than 24 characters; shorten it')
+        chips.append(StatusChip(kind=str(kind), label=label))
+    if len({c.kind for c in chips}) != len(chips):
+        raise ScreenError(f"{where} lists a chip twice; list each chip once")
+    return tuple(chips)
 
 
 def _knowledge(app_dir: Path, value: str) -> Path:
@@ -225,6 +263,15 @@ def load_screen(app_dir: Path, name: str) -> ScreenSpec:
                                 inputs={k: str(v) for k, v in ex["inputs"].items()},
                                 mock=ex.get("mock")))
 
+    status = None
+    if "status" in raw:
+        try:
+            status = _status(raw["status"])
+        except ScreenError as exc:
+            fail(str(exc))
+        if knowledge is None and any(c.kind == "knowledge" for c in status):
+            fail("status lists knowledge but the screen has no knowledge: folder; add one or drop the chip")
+
     prompt_path = app_dir / "prompts" / f"{name}.md"
     if not prompt_path.is_file():
         raise ScreenError(f"app/prompts/{name}.md is missing; every screen needs a prompt file")
@@ -235,5 +282,5 @@ def load_screen(app_dir: Path, name: str) -> ScreenSpec:
         description=str(raw.get("description", "")),
         layout=layout, model=model, reasoning=reasoning in (True, "on"),
         inputs=inputs, knowledge=knowledge, output=output, answer=tuple(blocks),
-        examples=tuple(examples), prompt_path=prompt_path,
+        examples=tuple(examples), prompt_path=prompt_path, status=status,
     )

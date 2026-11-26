@@ -4,7 +4,12 @@
   <section class="block block-{{ b.kind }}">
     <h2>{{ b.title }}</h2>
     {% if b.kind == "score" %}
-    <div class="score">
+    {%- set band = "" %}
+    {%- if b.higher %}
+      {%- set bad = v.value if b.higher == "worse" else 100 - v.value %}
+      {%- set band = " score-high" if bad >= 70 else (" score-mid" if bad >= 40 else " score-low") %}
+    {%- endif %}
+    <div class="score{{ band }}">
       <div class="score-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ v.value }}">
         <span style="width: {{ v.value }}%"></span>
       </div>
@@ -18,7 +23,15 @@
       <table>
         <thead><tr>{% for c in b.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
         <tbody>
-          {% for row in v %}<tr>{% for c in b.columns %}<td>{{ row.get(c, "") }}</td>{% endfor %}</tr>{% endfor %}
+          {% for row in v %}<tr>{% for c in b.columns %}
+            {%- set cell = row.get(c, "") | string %}
+            {%- set level = cell | lower %}
+            {%- if c | lower in ("severity", "risk", "priority") and level in ("critical", "high", "medium", "low") %}
+            <td><span class="sev sev-{{ level }}">{{ cell }}</span></td>
+            {%- else %}
+            <td{% if c | lower in ("line", "fix", "command", "config line") %} class="mono"{% endif %}>{{ cell }}</td>
+            {%- endif %}
+          {%- endfor %}</tr>{% endfor %}
         </tbody>
       </table>
     </div>
@@ -57,6 +70,7 @@
       <span class="route-hop">{% if r.model_ms is not none %}model {{ (r.model_ms / 1000) | round(2) }} s{% endif %}</span>
       <span>{{ icon("server") }} {{ r.tier | capitalize }} model{% if r.model_name %} · {{ r.model_name }}{% endif %}</span>
     </span>
-    <span class="route-site">All inside {{ site }}</span>
+    <span class="route-site">All inside {{ site }}{% if r.tokens %} · {{ r.tokens }} tokens{% endif %}{% if not r.mocked %} · <strong class="free">$0</strong>{% endif %}</span>
   </div>
 </div>
+{% if chips %}{% with oob = true %}{% include "partials/chips.html" %}{% endwith %}{% endif %}

@@ -1,5 +1,5 @@
 # Your app. The agentic harness fills this in from your first prompt.
-name: Your app          # shown in the header, 1 to 40 characters
+name: Mock App          # shown in the header, 1 to 40 characters
 # mark: shield          # one letter, or an icon from the platform's set
 # brand: "#1D4ED8"      # hex color for the mark and header accent
 # site: HQ data center  # where data stays, shown in the trust signals

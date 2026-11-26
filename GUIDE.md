@@ -18,25 +18,29 @@ Values in `<angle brackets>` come from your lab page.
 - Use only the made-up sample data in this repo. Never paste real alerts, logs, customer,
   patient or employee data.
 
-## Step 0: see your app's start page
+## Step 0: check your app's system status
 
 1. Open your app URL, `<your app URL>`, in a browser. If you don't have it yet,
    do step 1 below and ask the harness: *What is my app URL?*
-2. You see **What do you want to build?** with three checks under it:
+2. You see **Mock App** and ten status tiles. Hover or tap the (i) on any tile to see what it
+   means. The first three tell you the lab is ready:
 
-   | Check | Green means | If it is not green |
+   | Tile | Green means | If it is not green |
    |---|---|---|
-   | App | The app is running | Wait a minute and refresh |
-   | Fast model | The fast tier answered | Amber `unreachable` or `not served`: tell the lab staff |
+   | App | The app is running; it shows its version and build | Wait a minute and refresh |
+   | Fast model | The fast tier answered | Amber **Down**: tell the lab staff |
    | Smart model | The smart tier answered | Same as above |
 
-   Grey **skipped: mock mode** means the app is running without models, for rehearsals.
-3. Alert Triage is picked, with prompt 1 ready and a preview of the screen it builds. Each
-   prompt below has a **Copy prompt** button there, so you can copy instead of typing. The page
-   reloads by itself when a new build is live and ticks off each prompt the app already has.
-   Once your app exists, the **Start page** link at the bottom of every page brings you back.
+   Grey **Mock mode** means the app is running without models, for rehearsals. The other tiles
+   show why on-site AI matters: air-gapped, private data, $0 per token, data residency, speed
+   under load and pinned model versions.
+3. Press **Ask** on both models and **Run** on *10 requests at once*: you see the answer time,
+   the tokens used and the cost, $0, measured on the lab's own GPUs.
+4. Once your app has a screen, the **System status** link at the top right brings you back
+   here; its dot turns amber when a model is down. The footer shows your app's version, which
+   goes up by one with every push, so you can tell when a change is live.
 
-![The start page before the first prompt](guide-images/step-0-start.png)
+![The system status page before the first prompt](guide-images/step-0-status.png)
 
 ## Step 1: open the harness
 
@@ -47,7 +51,7 @@ Values in `<angle brackets>` come from your lab page.
 
 ## Step 2: build the app (prompt 1)
 
-Copy it from the start page, or type or paste:
+Copy it from the lab guide, or type or paste:
 
 ```text
 Build an alert triage app for our HQ security team. An analyst pastes an alert, can attach its
@@ -61,7 +65,7 @@ Alert Triage brief: the brief tells the harness the details you leave out.
 The harness writes the app's files in `app/`, runs `make check`, pushes, waits for the new
 build, and reports your app URL with timings. That takes a few minutes. Then:
 
-1. Your app URL now opens **Triage an alert** instead of the start page.
+1. Your app URL now opens **Triage an alert** instead of the system status page.
 2. Click the example **Password spray, then a login**. You get a verdict.
 3. Look under the answer: **Answered on-site in … s**, with the path from this device to the
    app to the smart model, all inside the site.
@@ -70,7 +74,7 @@ build, and reports your app URL with timings. That takes a few minutes. Then:
 
 ## Step 3: ground it in your runbooks (prompt 2)
 
-Copy it from the start page, or type or paste:
+Copy it from the lab guide, or type or paste:
 
 ```text
 Add our incident runbooks for password spray, phishing and malware, and give the analyst next
@@ -84,7 +88,7 @@ chip naming the runbook section it came from, and **Sources searched** under the
 
 ## Step 4: shape the answer (prompt 3)
 
-Copy it from the start page, or type or paste:
+Copy it from the lab guide, or type or paste:
 
 ```text
 Add a severity score from 0 to 100 and a table of the MITRE ATT&CK techniques. Count the failed
@@ -103,26 +107,21 @@ counts them before the model answers.
 
 ![After prompt 3: severity, techniques and next steps](guide-images/step-3-shape.png)
 
-## Or: build one of the other use cases
+## Or: build NetConf Guard or another use case
 
-The start page has eight more use cases, from Config Auditor (IT) to Clause Review (legal). Each
-is one prompt that builds the whole app at once, instead of three steps.
+`catalog/` holds a brief for each guided use case. **NetConf Guard** (network operations) is
+built the same way in three prompts: a network engineer pastes a switch, router or firewall
+config and gets a risk score, the issues with exact fixes and the hardening rule each one breaks.
+Its prompts are in `catalog/netconf-guard.md` and in the lab guide's use-case appendix.
 
-1. On the start page, click the use case. The preview shows the inputs and the answer it builds.
-2. Click **Copy prompt**, paste it into a new harness chat and send it. Your repo holds one app,
-   so this replaces what you built. To keep it, start your message with *Add this as a second
-   screen:* and paste the prompt after it.
-3. The harness makes up the sample data, documents and examples, checks, pushes and reports your
-   app URL. That takes a few minutes; the start page reloads when the new build is live.
-4. Open your app and click each example. Check that:
-   - the answer has the parts the preview showed (a score, a table, a checklist, text);
-   - each cited section is in the documents the harness made up;
-   - counts the prompt asks for exactly (voids, deposits, alarms) match the sample data.
-5. Fix what looks off one request at a time, saying what you expected: *The hardened switch passes
-   11 of 12 rules, so its score should be above 90.* Then use the ideas in step 5.
+1. Start a new harness chat and send prompt 1 from the brief. Your repo holds one app, so this
+   replaces what you built. To keep it, start your message with *Add this as a second screen:*.
+2. After each prompt, open your app, try a sample and check what the brief's table says to check.
+3. The chips above the screen (Air-gapped, Configs stored, Reviews, Last review, Model, Standard)
+   update after every review; hover one to see what it means.
 
-No brief sits behind these prompts, so the harness decides the details. If an answer looks wrong,
-describe what you expected rather than rewriting the whole prompt.
+For an idea with no brief, describe who uses it, what they paste or upload, and what they should
+get back. The harness decides the details, so if an answer looks wrong, say what you expected.
 
 ## Step 5: make it yours
 
@@ -147,8 +146,9 @@ thing that works, such as a table instead of a chart.
 
 On any screen, point out:
 
-- **Air-gap capable** in the header: the model, data, code and fonts all run on-site, and the
-  app is checked for any outside address before every publish.
+- The chips above the screen: air-gapped, nothing stored, the run count at $0, the last answer
+  time, the pinned model and its precision. Hover one to see what it means.
+- **System status** at the top right: every tile, live, with the same reasons in more detail.
 - The note under the inputs: what you enter stays in the site named in the app.
 - The response route under each answer: measured time from this device to the model and back.
 

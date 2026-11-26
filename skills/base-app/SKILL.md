@@ -10,7 +10,8 @@ Markdown, CSV and text files, plus an optional `hooks.py`. Read `AGENTS.md` firs
 
 ## The loop
 
-1. Read the request, the brief in `catalog/` if one is named, and `examples/alert-triage/app/`.
+1. Read the request, the brief in `catalog/` if one is named, and the finished app in `examples/`
+   closest to it (`alert-triage` or `netconf-guard`).
    Users type short prompts in their own words. If the brief has **What each prompt builds**, match
    the prompt to its step (usually the next one `app/` does not have yet), take every detail the
    prompt leaves out from that step, and build only that step. Later prompts in the same chat
@@ -92,6 +93,34 @@ Answer blocks and the JSON each one must produce; `key` defaults to the block na
 | `table` | `[{"<column>": "...", ...}]`, one key per column; `columns:` is required |
 | `checklist` | `[{"step": "...", "source": "[n]" or ""}]`; the source becomes a citation chip |
 
+Two display rules need no extra YAML beyond what is shown:
+- `score: {key: risk, title: Risk, higher: worse}` colors the value red at 70 and up, amber at 40
+  to 69, green below. Use `higher: better` for scores where high is good, such as compliance.
+- In a table, a column named Severity, Risk or Priority shows High, Medium, Low and Critical as
+  colored chips. Columns named Line, Fix, Command or Config line are set in monospace.
+
+## Status chips
+
+A row of chips above each screen shows the local-AI facts that matter for it. Each chip has a
+meaning the user sees on hover. Without `status:` a screen shows airgap, stored, runs, last and
+model, plus knowledge when it has `knowledge:`. Pick and rename them in the screen file:
+
+```yaml
+status:
+  - airgap                  # Air-gapped: On
+  - stored: Configs stored  # nothing is written to disk or logs
+  - runs: Reviews           # answers since this build started, at $0
+  - last: Last review       # time of the last answer
+  - model                   # model and precision, such as nemotron-3.5-super · NVFP4
+  - knowledge: Standard     # documents and sections searched; needs knowledge:
+```
+
+`status: off` hides the row. Labels are at most 24 characters. Numbers are measured by the
+platform, so never write them in YAML.
+
+The footer shows `<app name> v<N>`, the build commit and the deploy time. N goes up by one with
+every push, so after `make wait` tell the user the new version number.
+
 Examples are both the chips users click and the tests `make check` runs. Every screen needs at
 least one. A file input in an example names a file in `data/`. `mock` is the answer the mock model
 returns in `make check` and `make dev` with `LLM_MOCK=1`: write it as the ideal answer, in the
@@ -136,6 +165,8 @@ Errors name the line: `app/hooks.py line 12: KeyError: 'owner' (while running pr
   update every example's mock to the new shape.
 - **Exact numbers:** add `hooks.py` with `prepare(ctx)` and use its values in the prompt.
 - **New screen:** add it to `screens:` in app.yaml, then its screen file and prompt.
+- **Show the right status:** add `status:` with the chips that matter for the use case, renamed in
+  the user's words (Reviews, Alerts triaged, Notes summarized).
 
 ## Not in this platform version
 

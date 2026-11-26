@@ -1,0 +1,12 @@
+{% if mocked %}
+<p class="muted">{{ icon("circle-minus") }} Mock mode: no model was called, so there is nothing to time.</p>
+{% else %}
+<ul class="bars" hx-trigger="load" hx-get="/status/tiles" hx-target=".tiles" hx-swap="innerHTML">
+  {% for ms in times %}
+  <li><span class="bar"><span style="width: {{ (ms / (slowest or 1) * 100) | round(1) }}%"></span></span>
+      <span class="mono">{{ ms }} ms</span></li>
+  {% endfor %}
+</ul>
+<p class="demo-route">All {{ times | length }} answered by {{ endpoint.short_name }} · median {{ median }} ms ·
+  slowest {{ slowest }} ms · <strong class="free">$0</strong>{% if failed %} · {{ failed }} failed{% endif %}</p>
+{% endif %}

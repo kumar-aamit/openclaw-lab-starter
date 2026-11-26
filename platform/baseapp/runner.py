@@ -40,6 +40,7 @@ class RunResult:
     model_ms: int | None
     total_ms: int
     mocked: bool
+    tokens: int | None = None
 
 
 def load_runtime(settings: Settings) -> Runtime:
@@ -131,13 +132,13 @@ async def run_screen(rt: Runtime, screen: ScreenSpec, inputs: dict[str, str], ex
     endpoint = rt.settings.smart if screen.model == "smart" else rt.settings.fast
     if rt.settings.mock:
         mock = screen.examples[example].mock if example is not None else None
-        answer, model_ms = (mock or placeholder_answer(screen.answer)), None
+        answer, model_ms, tokens = (mock or placeholder_answer(screen.answer)), None, None
     else:
         system = (f"You are {rt.spec.name}, an assistant running on-site at {ctx.site}. "
                   "Reply with one JSON object that matches the schema. Be short and specific.")
         messages = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
         try:
-            answer, model_ms = await complete_json(
+            answer, model_ms, tokens = await complete_json(
                 client, endpoint, rt.settings.api_key, messages, json_schema(screen.answer),
                 reasoning=screen.reasoning, tier=screen.model)
         except ModelError as exc:
@@ -149,5 +150,5 @@ async def run_screen(rt: Runtime, screen: ScreenSpec, inputs: dict[str, str], ex
     return RunResult(
         answer=answer, sources=sources, prompt=prompt, tier=screen.model,
         model_name=endpoint.model, model_ms=model_ms,
-        total_ms=round((time.perf_counter() - start) * 1000), mocked=rt.settings.mock,
+        total_ms=round((time.perf_counter() - start) * 1000), mocked=rt.settings.mock, tokens=tokens,
     )

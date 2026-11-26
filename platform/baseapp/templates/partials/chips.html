@@ -1,0 +1,12 @@
+<div class="chips-status" id="status-chips" aria-label="Status"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% for c in chips %}
+  <span class="info chip-status">
+    <button type="button" class="chip-button" aria-describedby="chip-{{ c.kind }}">
+      <span class="dot dot-ok" aria-hidden="true"></span>
+      <span>{{ c.label }}</span>
+      <strong>{{ c.value }}</strong>
+    </button>
+    <span class="tip" role="tooltip" id="chip-{{ c.kind }}">{{ c.meaning }}</span>
+  </span>
+  {% endfor %}
+</div>
