@@ -1,0 +1,29 @@
+# base-app: the platform every lab user's app image builds FROM.
+# Build from the repo root (base-app or openclaw-lab-starter): podman build -f platform/Containerfile .
+FROM registry.access.redhat.com/ubi9/python-312:latest AS builder
+USER 0
+COPY platform/requirements.txt /tmp/requirements.txt
+RUN /usr/bin/python3.12 -m venv /opt/venv \
+ && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
+ && /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
+
+FROM registry.access.redhat.com/ubi9/python-312-minimal:latest
+USER 0
+COPY --from=builder /opt/venv /opt/venv
+COPY platform/baseapp /opt/base-app/baseapp
+RUN mkdir -p /opt/app-root/app \
+ && /opt/venv/bin/python -m compileall -q /opt/venv /opt/base-app \
+ && chgrp -R 0 /opt/venv /opt/base-app /opt/app-root \
+ && chmod -R g=u /opt/venv /opt/base-app /opt/app-root
+
+ENV PATH=/opt/venv/bin:$PATH \
+    PYTHONPATH=/opt/base-app \
+    APP_DIR=/opt/app-root/app \
+    APP_PORT=8742 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+USER 1001
+WORKDIR /opt/app-root
+EXPOSE 8742
+CMD ["python", "-m", "baseapp"]
