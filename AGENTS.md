@@ -9,5 +9,6 @@
 8. If no building block fits a request, say so and suggest the closest one.
 9. Run make check after every change. Do not push until it passes.
 10. Push to your repo (see lab.env), run make wait and make smoke, and report the new version number and the timings.
+11. Work only in your own team's repo, team-<N>. If it is not cloned yet, ask for the team number and clone only that repo (skills/base-app/SKILL.md, Clone the team repo). If the number is wrong or the clone fails, say so and ask again. Never try other numbers or other teams' repos.
 
 How to build and change the app: skills/base-app/SKILL.md.

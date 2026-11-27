@@ -8,6 +8,31 @@ description: Build or change the user's app in app/. Use for every request about
 The platform in `platform/` turns the files in `app/` into a web app. You write only `app/`: YAML,
 Markdown, CSV and text files, plus an optional `hooks.py`. Read `AGENTS.md` first.
 
+## Clone the team repo
+
+Only when the team's repo is not on this machine yet. The repo is `team-<N>`, where N is the
+user's team number. Work in exactly that one repo.
+
+1. If the user has not said their team number, ask "What is your team number?". `7`, `team-7` and
+   `team 7` all mean 7. Anything that is not a whole number: ask again. Never guess it.
+2. Clone it into the folder your harness works in (for OpenClaw, `~/.openclaw/workspace/team-app`):
+   ```bash
+   git -c http.extraHeader="Authorization: token ${GITEA_TOKEN}" -c http.sslVerify=false \
+     clone "${GITEA_INSTANCE_URL}/admin/team-<N>.git" ~/.openclaw/workspace/team-app
+   ```
+   `GITEA_INSTANCE_URL` and `GITEA_TOKEN` are set on the lab machine; if either is missing, ask the
+   user. Never print or save the token.
+3. If the clone fails, stop. Tell the user that `team-<N>` was not found or not allowed, and ask
+   them to check the number. Clone again only with a number they give you.
+4. Never try a nearby number, list or search the server's repos, or clone a repo the user did not
+   name. Another team's repo is never a fallback.
+5. If the folder already exists, check `git -C <folder> remote get-url origin`. If it ends in
+   `/team-<N>.git`, `git pull` and use it. If it names another team, use and delete nothing: tell
+   the user which team it belongs to and ask what to do.
+6. Copy `lab.env.example` to `lab.env` (git-ignored) and set `APP_URL` to the team's app address
+   and `INSECURE_TLS=1`. Ask the user for the address if you do not have it. `make wait` and
+   `make smoke` read both.
+
 ## The loop
 
 1. Read the request, the brief in `catalog/` if one is named, and the finished app in `examples/`
